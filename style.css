@@ -1,0 +1,326 @@
+body {
+    margin: 0;
+    overflow: hidden; /* Sayfanın kaymasını engelle */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh; /* Tam ekran yüksekliği */
+    background-color: #000014;
+    font-family: 'Press Start 2P', cursive; /* Piksel yazı tipi */
+    color: #0ff;
+    text-shadow: 0 0 8px rgba(0, 255, 255, 0.7);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    user-select: none; /* Metin seçimi engellendi */
+}
+
+#game-container {
+    position: relative; /* İçindeki canvas'ı konumlandırmak için */
+    width: 700px; /* Canvas genişliği */
+    height: 450px; /* Canvas yüksekliği */
+    border: 3px solid #0ff; /* Neon mavi çerçeve */
+    box-shadow: 0 0 20px #0ff; /* Neon mavi gölge */
+    background-color: #0a001a;
+    overflow: hidden; /* Taşmayı gizle */
+    z-index: 10; /* Diğer UI elementlerinin altında, body'nin üstünde */
+    margin-top: 0; /* body flexbox ortaladığı için margin-top'a gerek yok */
+}
+
+canvas {
+    display: block;
+    background-color: #0a001a;
+    touch-action: none; /* Mobil cihazlarda varsayılan kaydırma/yakınlaştırmayı engelle */
+    position: absolute; /* game-container'ı tamamen doldur */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1; /* Oyun alanının içinde en altta */
+}
+
+/* Tüm UI elementlerini (skor, dash, menüler, joystick) kapsayacak genel overlay */
+#game-ui-overlay {
+    position: fixed; /* Ekranın tamamını kapla, oyun alanından bağımsız */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Varsayılan olarak overlay'e tıklamayı engelle, altındaki elementlere tıklanabilir olsun */
+    z-index: 100; /* Oyun alanının ve çerçevesinin üzerinde kalsın */
+    /* Bu bir flexbox kapsayıcı değil, içindeki fixed elemanlar kendini konumlandırır */
+}
+
+/* Üst UI elemanlarını sarmalayan div (skor ve dash bar) */
+#info-bar-container {
+    position: fixed; /* Ekranın üstünde sabit kal */
+    top: 0;
+    left: 0;
+    width: 100%;
+    display: flex; /* İçindeki info ve dash-cooldown'ı yan yana koymak için */
+    justify-content: space-between; /* Skor ve dash barını ayrı uçlara itmek için */
+    padding: 10px; /* Kenarlardan boşluk */
+    box-sizing: border-box; /* Padding'in genişliğe dahil olmasını sağlar */
+    background-color: rgba(0, 0, 0, 0.7); /* Şeffaf arka plan */
+    border-bottom: 2px solid #0ff; /* Oyun alanından ayıran çizgi */
+    box-shadow: 0 0 15px #0ff; /* Neon gölge */
+    z-index: 1000; /* Oyunun ve diğer alt UI elementlerinin üzerinde */
+    pointer-events: auto; /* Bu elemente tıklamayı tekrar etkinleştir */
+}
+
+/* Bilgi Çubuğu (Skor, Seviye vb.) */
+#info {
+    color: #0ff; /* Ana renk */
+    font-size: 1.2em;
+    text-shadow: 0 0 8px rgba(0, 255, 255, 0.7);
+    display: none; /* Başlangıçta gizli */
+    text-align: left; /* info-bar-container içinde sola hizalı */
+}
+#info span {
+    font-weight: normal; /* Normal font ağırlığı */
+    color: #fff; /* Değerler için beyaz */
+    text-shadow: 0 0 5px #fff;
+}
+#timer {
+    font-weight: bold;
+    font-size: 1em; /* info fontuyla aynı boyutta olsun */
+    color: #0f0;
+    text-shadow: 0 0 8px rgba(0, 255, 0, 0.7);
+    display: none; /* Timed modunda görünür olacak */
+    margin-left: 20px; /* Diğer bilgilerden biraz boşluk */
+}
+
+
+/* Başlangıç Bilgisi */
+#startInfo {
+    position: fixed; /* Sabit konumda kalsın */
+    top: 10%; /* Ekranın üstünden %10 */
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.7);
+    padding: 15px 30px;
+    border-radius: 10px;
+    font-size: 1.4rem;
+    text-align: center;
+    color: #0f0; /* Neon yeşil */
+    box-shadow: 0 0 20px #0f0;
+    user-select: none;
+    display: none;
+    z-index: 999; /* Diğer öğelerin üzerinde ama menünün altında */
+    pointer-events: none; /* Tıklamayı engelle */
+}
+
+/* Ana Menü ve Diğer Oyun Ekranları (Game Over, Level Up, Confirm Quit) */
+.overlay { /* Genel overlay stili */
+    position: fixed; /* Ekranın ortasında sabit kal */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0,0,0,0.85);
+    padding:30px 50px;
+    border-radius:12px;
+    font-size:2rem;
+    text-shadow:0 0 15px #0ff;
+    user-select:none;
+    cursor:default;
+    color:#0ff;
+    min-width:300px;
+    box-sizing: border-box;
+    z-index: 2000; /* En üstte olmalı */
+    display: none; /* Başlangıçta gizli */
+    pointer-events: auto; /* Bu elemente tıklamayı tekrar etkinleştir */
+    text-align: center; /* İçeriği ortala */
+}
+
+#menu {
+    /* Overlay sınıfından farklı olarak display:block; olacak */
+    display: block; /* Başlangıçta menü gösterilsin */
+    padding: 50px 80px; /* Menü için daha büyük padding */
+    border-radius: 15px; /* Daha belirgin köşeler */
+    box-shadow: 0 0 30px #0ff; /* Daha belirgin gölge */
+}
+#menu h1 {
+    font-size: 3em;
+    color: #0ff;
+    text-shadow: 0 0 20px #0ff;
+    margin-bottom: 25px;
+}
+#menu label {
+    display: block;
+    margin-top: 25px;
+    font-size: 1.4rem;
+}
+#menu select {
+    margin-top: 10px;
+    padding: 10px 15px;
+    font-size: 1.2rem;
+    border-radius: 8px;
+    border: 2px solid #0ff;
+    box-shadow: 0 0 15px #0ff;
+    background: #000a1a;
+    color: #0ff;
+    cursor: pointer;
+    user-select: none;
+}
+#menu button {
+    background: #0ff;
+    border: none;
+    padding: 20px 60px;
+    font-size: 2rem;
+    color: #000014;
+    border-radius: 12px;
+    cursor: pointer;
+    box-shadow: 0 0 15px #0ff;
+    transition: background 0.3s ease;
+    margin-top: 30px; /* Buton üstünde daha fazla boşluk */
+    font-family: 'Press Start 2P', cursive;
+}
+#menu button:hover, #menu button:focus {
+    background: #33ffff;
+    outline: none;
+}
+#menuHighScore {
+    margin-top: 20px;
+    font-size: 1.3rem;
+    color: #0ff;
+    text-shadow: 0 0 8px #0ff;
+}
+#newRecordMsg {
+    margin-top: 15px;
+    font-size: 1.6rem;
+    color: #0f0;
+    text-shadow: 0 0 10px #0f0;
+    font-weight: bold;
+    display: none;
+}
+
+/* Ortak Seçenek Stilleri */
+.option {
+    padding: 8px 15px;
+    margin: 10px auto; /* Ortala ve dikey boşluk ver */
+    border-radius: 8px;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s ease-in-out;
+}
+.option.selected {
+    background: #0ff;
+    color: #000014;
+    font-weight: bold;
+    box-shadow: 0 0 15px #0ff;
+}
+
+/* Dash Cooldown Barı */
+#dash-cooldown-wrapper {
+    width: 150px;
+    height: 20px;
+    background-color: rgba(255, 255, 255, 0.2);
+    border: 1px solid #fff;
+    border-radius: 5px;
+    overflow: hidden;
+    display: flex; /* İçindeki bar ve metin için flex */
+    align-items: center;
+    justify-content: center;
+    position: relative; /* Metin için konumlandırma bağlamı */
+    z-index: 1000;
+    pointer-events: none; /* Bu div'e tıklama engellenmeli, sadece içindeki metin gösterimi */
+}
+
+#dash-cooldown-bar {
+    height: 100%;
+    width: 0%; /* Başlangıçta boş */
+    background-color: #0f0; /* Yeşil */
+    transition: width 0.1s linear, background-color 0.3s ease; /* Genişlik ve renk değişimi için geçiş */
+    position: absolute; /* Wrapper içinde tam konumlandır */
+    left: 0;
+    top: 0;
+}
+
+#dash-cooldown-text {
+    position: relative; /* Barın üzerinde kalması için */
+    color: white;
+    font-size: 0.8em;
+    z-index: 1; /* Yazının barın üzerinde olmasını sağlar */
+    text-shadow: 0 0 5px black;
+    pointer-events: none; /* Metnin üzerine tıklanmasını engelle */
+}
+
+/* Joystick Stilleri */
+#joystick-container {
+    position: fixed; /* Ekranın alt-solunda sabit kalır */
+    bottom: 30px; /* Alttan 30 piksel yukarıda */
+    left: 30px; /* Soldan 30 piksel içeride */
+    width: 150px; /* Joystick alanının genişliği */
+    height: 150px; /* Joystick alanının yüksekliği */
+    display: none; /* Varsayılan olarak gizli, mobil cihazlarda JS ile gösterilecek */
+    z-index: 1000; /* Diğer her şeyin üzerinde görünmesini sağlar */
+    opacity: 0.8; /* Hafif şeffaflık */
+    pointer-events: auto; /* Bu elemente tıklamayı tekrar etkinleştir */
+}
+
+#joystick-base {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 255, 255, 0.2); /* Neon mavisi şeffaf arka plan */
+    border: 2px solid #0ff; /* Neon mavisi kenarlık */
+    border-radius: 50%; /* Dairesel şekil */
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.5); /* Neon gölge */
+    left: 0;
+    top: 0;
+}
+
+#joystick-handle {
+    position: absolute;
+    width: 60px; /* Kolun genişliği */
+    height: 60px; /* Kolun yüksekliği */
+    background-color: #0ff; /* Neon mavisi kol rengi */
+    border-radius: 50%; /* Dairesel şekil */
+    box-shadow: 0 0 10px #0ff; /* Neon gölge */
+    left: calc(50% - 30px); /* Ortala */
+    top: calc(50% - 30px); /* Ortala */
+    cursor: grab; /* Tutulabilir imleç */
+    touch-action: none; /* Dokunmatik kaydırmayı engeller */
+}
+
+/* Dash Buton Stilleri */
+#dash-button-container {
+    position: fixed; /* Ekranın alt-sağında sabit kalır */
+    bottom: 30px;
+    right: 30px;
+    display: none; /* Varsayılan olarak gizli, mobil cihazlarda JS ile gösterilecek */
+    z-index: 1000;
+    opacity: 0.8; /* Hafif şeffaflık */
+    pointer-events: auto; /* Bu elemente tıklamayı tekrar etkinleştir */
+}
+
+#dash-button {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%; /* Dairesel düğme */
+    background-color: rgba(255, 0, 255, 0.6); /* Neon pembe/mor şeffaf arka plan */
+    color: white;
+    font-size: 1.2em;
+    font-weight: bold;
+    border: 2px solid #f0f; /* Neon pembe/mor kenarlık */
+    box-shadow: 0 0 15px rgba(255, 0, 255, 0.5); /* Neon gölge */
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none; /* Metin seçimini engelle */
+    -webkit-tap-highlight-color: transparent; /* Dokunma vurgusunu kaldır */
+    font-family: 'Press Start 2P', cursive;
+}
+
+#dash-button:active {
+    background-color: rgba(255, 0, 255, 0.9); /* Basıldığında daha opak */
+    box-shadow: 0 0 20px rgba(255, 0, 255, 0.8);
+}
+
+/* Telefon ekranlarında joystick ve dash butonunu göster */
+@media (max-width: 768px) {
+    #joystick-container,
+    #dash-button-container {
+        display: block; /* Mobil cihazlarda görünür yap */
+    }
+}
